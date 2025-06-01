@@ -7,6 +7,9 @@
 #include <termios.h>
 #include <unistd.h>
 
+/*** defines ***/
+#define CTRL_KEY(k) ((k) & 0x1f)
+
 /*** data ***/
 struct termios orig_termios;
 
@@ -45,23 +48,33 @@ void raw_mode_enable(void) {
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
+char editor_read_key(void) {
+	int nread;
+	char c;
+	while((nread = read(STDERR_FILENO, &c, 1)) != 1) {
+		if (nread == -1 && errno != EAGAIN) die("read");
+	}
+	return c;
+}
+
+/*** input ***/
+void editor_process_keypress(void) {
+	char c = editor_read_key();
+
+	switch (c) {
+		case CTRL_KEY('q'):
+			exit(0);
+			break;
+	}
+}
+
 /*** init ***/
 
 int main(void) {
   raw_mode_enable();
 
   while (1) {
-    char c = '\0';
-    if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
-      die("read");
-    read(STDIN_FILENO, &c, 1);
-    if (iscntrl(c)) {
-      printf("%d\r\n", c);
-    } else {
-      printf("%d ('%c')\r\n", c, c);
-    }
-    if (c == 'q')
-      break;
+		editor_process_keypress();
   }
 
   return 0;
