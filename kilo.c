@@ -34,23 +34,35 @@
 /*** data ***/
 struct termios orig_termios;
 
-/*** terminal ***/
+/** output **/
+void editor_draw_rows(void) {
+  int y;
+  for (y = 0; y < 24; y++) {
+    write(STDOUT_FILENO, "~\r\n", 3);
+  }
+}
 
+/*** terminal ***/
 void die(const char *s) {
+  write(STDOUT_FILENO, "\x1b[2J", 4);
+  write(STDOUT_FILENO, "\x1b[H", 3);
+
   perror(s);
   exit(1);
 }
 
 void raw_mode_disable(void) {
-  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1)
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1) {
     die("tcsetattr");
+  }
 
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
 
 void raw_mode_enable(void) {
-  if (tcgetattr(STDIN_FILENO, &orig_termios) == -1)
+  if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) {
     die("tcgetattr");
+  }
 
   tcgetattr(STDIN_FILENO, &orig_termios);
   atexit(raw_mode_disable);
@@ -63,39 +75,53 @@ void raw_mode_enable(void) {
   raw.c_cc[VMIN] = 0;
   raw.c_cc[VTIME] = 1;
 
-  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1)
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) {
     die("tcsetattr");
+  }
 
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
 char editor_read_key(void) {
-	int nread;
-	char c;
-	while((nread = read(STDERR_FILENO, &c, 1)) != 1) {
-		if (nread == -1 && errno != EAGAIN) die("read");
-	}
-	return c;
+  int nread;
+  char c;
+  while((nread = read(STDERR_FILENO, &c, 1)) != 1) {
+    if (nread == -1 && errno != EAGAIN) {
+      die("read");
+    }
+  }
+  return c;
+}
+
+void editor_refresh_screen(void) {
+  write(STDOUT_FILENO, "\x1b[2J", 4);
+  write(STDOUT_FILENO, "\x1b[H", 3);
+
+  editor_draw_rows();
+
+  write(STDOUT_FILENO, "\x1b[H", 3);
 }
 
 /*** input ***/
 void editor_process_keypress(void) {
-	char c = editor_read_key();
+  char c = editor_read_key();
 
-	switch (c) {
-		case CTRL_KEY('q'):
-			exit(0);
-			break;
-	}
+  switch (c) {
+    case CTRL_KEY('q'):
+      write(STDOUT_FILENO, "\x1b[2J", 4);
+      write(STDOUT_FILENO, "\x1b[H", 3);
+      exit(0);
+      break;
+  }
 }
 
 /*** init ***/
-
 int main(void) {
   raw_mode_enable();
 
   while (1) {
-		editor_process_keypress();
+    editor_refresh_screen();
+    editor_process_keypress();
   }
 
   return 0;
